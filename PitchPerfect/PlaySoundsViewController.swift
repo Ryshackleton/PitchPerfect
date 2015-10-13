@@ -92,6 +92,7 @@ class PlaySoundsViewController: UIViewController, AVAudioPlayerDelegate  {
     // setup player, return true if we have a playable file or return false if not
     func setupPlayer() {
         // make audio go to the iPhone speaker, not the headset audio
+        // help from: http://stackoverflow.com/questions/1022992/how-to-get-avaudioplayer-output-to-the-speaker
         let avSession:AVAudioSession = AVAudioSession.sharedInstance()
         do { try avSession.overrideOutputAudioPort(AVAudioSessionPortOverride.Speaker) } catch { }
         
@@ -108,7 +109,7 @@ class PlaySoundsViewController: UIViewController, AVAudioPlayerDelegate  {
     // setup Motion to detect device orientation
     func setupMotion() -> Bool {
         if mMotionMgr.deviceMotionAvailable {
-            mMotionMgr.deviceMotionUpdateInterval = 0.1
+            mMotionMgr.deviceMotionUpdateInterval = 0.02
             return true
         }
         return false
@@ -138,6 +139,7 @@ class PlaySoundsViewController: UIViewController, AVAudioPlayerDelegate  {
         mAudioEngine.reset()
         
         // do a whole bunch of crazy setup
+        // help from: http://stackoverflow.com/questions/25704923/using-apples-new-audioengine-to-change-pitch-of-audioplayer-sound
         let playerNode = AVAudioPlayerNode()// build player node
         mAudioEngine.attachNode(playerNode) // player->audio engine
         let mixer = mAudioEngine.outputNode
@@ -247,7 +249,9 @@ class PlaySoundsViewController: UIViewController, AVAudioPlayerDelegate  {
     
     // -------------------------------------------------------------------------------------
     // MOTION DETECTION TO CONTROL PLAYBACK SPEED
-   
+    // used the following websites for help:
+    // http://nshipster.com/cmdevicemotion/
+    // http://forestgiant.com/blog/article/ios-device-motion-apps-with-attitude
     // stop tracking motion
     func stopMotionUpdates() -> Bool {
         if mMotionMgr.deviceMotionAvailable {
@@ -270,15 +274,11 @@ class PlaySoundsViewController: UIViewController, AVAudioPlayerDelegate  {
     // (y is along the long axis of the phone, so tilting to flat increases playback rate,
     //  and holding upright slows down play rate)
     func updateAudioRateWithMotion() {
-//        print("in updateAudioRateWithMotion()")
         if mMotionMgr.deviceMotionAvailable {
-//                print("in updateAudioRateWithMotion() -> device motion available")
             mMotionMgr.startDeviceMotionUpdatesToQueue(NSOperationQueue.mainQueue(), withHandler:{
                 (deviceMotion, error) -> Void in
-//                print("in updateAudioRateWithMotion().startDeviceMotionUpdatesToQueue()")
                 if( error == nil ) // is this the best way to check for nil values?
                 {
-//                    print("in updateAudioRateWithMotion().startDeviceMotionUpdatesToQueue() - no error")
                     self.mAudioPlayer.rate = Float.init(1 + deviceMotion!.gravity.y)
                     if( self.mAudioPlayer.rate < 0.5 ) {
                         self.motionLabel.text = "Slooow"
