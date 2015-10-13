@@ -31,6 +31,7 @@ class PlaySoundsViewController: UIViewController, AVAudioPlayerDelegate  {
     var mAudioPlayer:AVAudioPlayer!
     var mReceivedAudio:RecordedAudio!
     var mMotionMgr = CMMotionManager()
+    var mMotionStart:Vec3!
     var mAudioEngine:AVAudioEngine!
     
     // -------------------------------------------------------------------------------------
@@ -48,6 +49,11 @@ class PlaySoundsViewController: UIViewController, AVAudioPlayerDelegate  {
         setupPitchPlayer()
         setupMotion()
         updateButtons()
+    }
+    
+    override func viewWillDisappear(animated: Bool) {
+        onStopButtonTouched(stopButton)
+        onStopAudioEngineButtonTouched(stopAudioEngineButton)
     }
 
     override func didReceiveMemoryWarning() {
@@ -76,7 +82,7 @@ class PlaySoundsViewController: UIViewController, AVAudioPlayerDelegate  {
             playWithMotionRateButton.hidden = false
             motionLabel.hidden = false
             if( !mMotionMgr.deviceMotionActive ) {
-                motionLabel.text = "Tap here and tilt the phone"
+                motionLabel.text = "Tap and flatten phone to slow playback"
             }
         }
         else {
@@ -110,6 +116,13 @@ class PlaySoundsViewController: UIViewController, AVAudioPlayerDelegate  {
     func setupMotion() -> Bool {
         if mMotionMgr.deviceMotionAvailable {
             mMotionMgr.deviceMotionUpdateInterval = 0.02
+            // initialize a start vector to the z+ coordinate direction
+            // we'll use the difference between this vector and the phone's
+            // current orientation to change the audio rate
+            mMotionStart = Vec3()
+            mMotionStart.x = 0.0
+            mMotionStart.y = 0.0
+            mMotionStart.z = 1.0
             return true
         }
         return false
@@ -270,26 +283,39 @@ class PlaySoundsViewController: UIViewController, AVAudioPlayerDelegate  {
         return false
     }
     
-    // use the gravity.y direction to control playback speed (simplest model there is)
-    // (y is along the long axis of the phone, so tilting to flat increases playback rate,
-    //  and holding upright slows down play rate)
+    func radiansBetweenStartAttitudeAndCurrentAttitude(deviceMotion: CMDeviceMotion) -> Double {
+        // TODO: figure out how to write a constructor in swift
+        let curV = Vec3()
+        curV.x = deviceMotion.gravity.x
+        curV.y = deviceMotion.gravity.y
+        curV.z = deviceMotion.gravity.z
+        return mMotionStart.radiansBetween(curV)
+    }
+    
+    // use the difference between the z=1 direction to normalize the playback rate
+    // (tilting to flat decreases playback rate,
+    //  and holding upright speeds up play rate)
     func updateAudioRateWithMotion() {
         if mMotionMgr.deviceMotionAvailable {
             mMotionMgr.startDeviceMotionUpdatesToQueue(NSOperationQueue.mainQueue(), withHandler:{
                 (deviceMotion, error) -> Void in
-                if( error == nil ) // is this the best way to check for nil values?
-                {
-                    self.mAudioPlayer.rate = Float.init(1 + deviceMotion!.gravity.y)
-                    if( self.mAudioPlayer.rate < 0.5 ) {
+                if( error == nil )  {// is this the best way to check for nil values?
+                
+                    var at = abs( self.radiansBetweenStartAttitudeAndCurrentAttitude(deviceMotion!) )
+                    at = abs( M_1_PI / (M_1_PI - at ) )
+                    
+                    self.mAudioPlayer.rate = Float(at)
+                    if( at < M_2_PI ) {
                         self.motionLabel.text = "Slooow"
                     }
-                    else if ( self.mAudioPlayer.rate < 1.0 ) {
+                    else if ( at < M_PI ) {
                         self.motionLabel.text = "Normal"
                     }
-                    else if ( self.mAudioPlayer.rate < 2.0 ) {
+                    else if ( at > M_PI ) {
                         self.motionLabel.text = "Faast!!"
                     }
-                    else{ self.motionLabel.text = "Error" }
+                    else{ self.motionLabel.text = String(at) }
+                    
                 }
             })
         }
