@@ -32,6 +32,7 @@ class PlaySoundsViewController: UIViewController, AVAudioPlayerDelegate  {
     var mReceivedAudio:RecordedAudio!
     var mMotionMgr = CMMotionManager()
     var mMotionStart:Vec3!
+    var mMotionSensitivity:Double = M_PI_4 * 0.5
     var mAudioEngine:AVAudioEngine!
     
     // -------------------------------------------------------------------------------------
@@ -122,7 +123,7 @@ class PlaySoundsViewController: UIViewController, AVAudioPlayerDelegate  {
             mMotionStart = Vec3()
             mMotionStart.x = 0.0
             mMotionStart.y = 0.0
-            mMotionStart.z = 1.0
+            mMotionStart.z = -1.0
             return true
         }
         return false
@@ -284,7 +285,7 @@ class PlaySoundsViewController: UIViewController, AVAudioPlayerDelegate  {
     }
     
     func radiansBetweenStartAttitudeAndCurrentAttitude(deviceMotion: CMDeviceMotion) -> Double {
-        // TODO: figure out how to write a constructor in swift
+        // TODO: figure out how to write a constructor in swift to initialize Vec3 with x,y,z
         let curV = Vec3()
         curV.x = deviceMotion.gravity.x
         curV.y = deviceMotion.gravity.y
@@ -302,16 +303,16 @@ class PlaySoundsViewController: UIViewController, AVAudioPlayerDelegate  {
                 if( error == nil )  {// is this the best way to check for nil values?
                 
                     var at = abs( self.radiansBetweenStartAttitudeAndCurrentAttitude(deviceMotion!) )
-                    at = abs( M_1_PI / (M_1_PI - at ) )
+                    at = abs( (self.mMotionSensitivity - at ) / self.mMotionSensitivity  )
                     
                     self.mAudioPlayer.rate = Float(at)
-                    if( at < M_2_PI ) {
+                    if( at < self.mMotionSensitivity * 0.5 ) {
                         self.motionLabel.text = "Slooow"
                     }
-                    else if ( at < M_PI ) {
+                    else if ( at < self.mMotionSensitivity * 1.5 ) {
                         self.motionLabel.text = "Normal"
                     }
-                    else if ( at > M_PI ) {
+                    else if ( at > self.mMotionSensitivity ) {
                         self.motionLabel.text = "Faast!!"
                     }
                     else{ self.motionLabel.text = String(at) }

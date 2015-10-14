@@ -22,7 +22,7 @@ class Vec3: NSObject {
         let d = len() * o.len()
         if( d > 0.0 ) {
              // dot product / (length * other length)
-            return (x*o.x + y*o.y + z*o.z) / d
+            return acos((x*o.x + y*o.y + z*o.z) / d )
         }
        return 0.0
     }
