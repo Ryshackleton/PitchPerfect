@@ -15,6 +15,12 @@ class Vec3: NSObject {
     var y: Double!
     var z: Double!
     
+    init(x:Double, y:Double, z:Double){
+        self.x = x
+        self.y = y
+        self.z = z
+    }
+    
     // angle between two vectors
     // from:http://stackoverflow.com/questions/16606989/angle-between-two-vectors-in-3d-space 
     // and many other sources

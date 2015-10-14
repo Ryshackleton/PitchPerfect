@@ -22,7 +22,6 @@ class PlaySoundsViewController: UIViewController, AVAudioPlayerDelegate  {
     @IBOutlet weak var playChipmunkAudioButton: UIButton!
     @IBOutlet weak var playDarthAudioButton: UIButton!
     @IBOutlet weak var stopButton: UIButton!
-    @IBOutlet weak var stopAudioEngineButton: UIButton!
     @IBOutlet weak var playWithMotionRateButton: UIButton!
     @IBOutlet weak var motionLabel: UILabel!
     
@@ -34,6 +33,7 @@ class PlaySoundsViewController: UIViewController, AVAudioPlayerDelegate  {
     var mMotionStart:Vec3!
     var mMotionSensitivity:Double = M_PI_4 * 0.5
     var mAudioEngine:AVAudioEngine!
+    var mAEnginePlaying = false
     
     // -------------------------------------------------------------------------------------
     // METHODS
@@ -54,7 +54,6 @@ class PlaySoundsViewController: UIViewController, AVAudioPlayerDelegate  {
     
     override func viewWillDisappear(animated: Bool) {
         onStopButtonTouched(stopButton)
-        onStopAudioEngineButtonTouched(stopAudioEngineButton)
     }
 
     override func didReceiveMemoryWarning() {
@@ -66,17 +65,10 @@ class PlaySoundsViewController: UIViewController, AVAudioPlayerDelegate  {
     // whether motion is available/active or not,
     // and sets the appropriate state of each button
     func updateButtons(){
-        
-        let somethingPlaying:Bool =  mAudioPlayer.playing || mAudioEngine.running
-        
-        playFastButton.enabled = !somethingPlaying
-        playSlowButton.enabled = !somethingPlaying
-        playChipmunkAudioButton.enabled = !somethingPlaying
-        playDarthAudioButton.enabled = !somethingPlaying
-        playWithMotionRateButton.enabled = !somethingPlaying
-        
         stopButton.hidden = !mAudioPlayer.playing
-        stopAudioEngineButton.hidden = !mAudioEngine.running
+        if( mAEnginePlaying ) {
+            stopButton.hidden = false
+        }
         
         // hide motion buttons in emulator mode or if no accelerometer/gyro are available
         if( mMotionMgr.deviceMotionAvailable ) {
@@ -111,6 +103,7 @@ class PlaySoundsViewController: UIViewController, AVAudioPlayerDelegate  {
     // setup pitch player for chipmunk and darth effects
     func setupPitchPlayer() {
         mAudioEngine = AVAudioEngine()
+        mAEnginePlaying = false
     }
     
     // setup Motion to detect device orientation
@@ -120,10 +113,7 @@ class PlaySoundsViewController: UIViewController, AVAudioPlayerDelegate  {
             // initialize a start vector to the z+ coordinate direction
             // we'll use the difference between this vector and the phone's
             // current orientation to change the audio rate
-            mMotionStart = Vec3()
-            mMotionStart.x = 0.0
-            mMotionStart.y = 0.0
-            mMotionStart.z = -1.0
+            mMotionStart = Vec3(x: 0.0, y: 0.0, z: -1.0)
             return true
         }
         return false
@@ -148,9 +138,7 @@ class PlaySoundsViewController: UIViewController, AVAudioPlayerDelegate  {
     // start audio playback and update buttons
     func playPitchAudio(rPitch:Float, rRate:Float) {
         // check for already playing
-        mAudioPlayer.stop()
-        mAudioEngine.stop()
-        mAudioEngine.reset()
+        stopAllAudio()
         
         // do a whole bunch of crazy setup
         // help from: http://stackoverflow.com/questions/25704923/using-apples-new-audioengine-to-change-pitch-of-audioplayer-sound
@@ -165,31 +153,12 @@ class PlaySoundsViewController: UIViewController, AVAudioPlayerDelegate  {
         mAudioEngine.connect(playerNode, to:auTimePitch, format: mixer.outputFormatForBus(0))
         mAudioEngine.connect(auTimePitch, to: mixer, format: mixer.outputFormatForBus(0))
        
-        do {
-            let avFile:AVAudioFile = try AVAudioFile(forReading: mReceivedAudio.filePathUrl)
-            playerNode.scheduleFile(avFile, atTime: nil, completionHandler: { self.onPitchPlayCompletion() } )
-            
+        do { playerNode.scheduleFile(try AVAudioFile(forReading: mReceivedAudio.filePathUrl), atTime: nil, completionHandler: {} )
             } catch { print("error can't create AVAudioFile") }
-        
         do { try mAudioEngine.start()
-             playerNode.play()
+            playerNode.play()
+            mAEnginePlaying = true
         } catch { print("error starting AVAudioEngine") }
-    }
-    
-    func onPitchPlayCompletion() {
-        // this seems to do nothing and gets called somehow in relation to the length of the play buffer?
-        // TODO: figure out how to handle this like a delegate. completionHandler: doesn't seem to call in any predictable manner
-        // annoying, because the stop button ends up hanging around after playback ends when it should disappear as with AVAudioPlayer
-//        mAudioPlayer.stop()
-//        mAudioEngine.stop()
-//        mAudioEngine.reset()
-//        updateButtons()
-    }
-    
-    // stop audio engine play and update buttons (same icon as other stop button)
-    @IBAction func onStopAudioEngineButtonTouched(sender: UIButton) {
-        mAudioEngine.stop()
-        mAudioEngine.reset()
         updateButtons()
     }
     
@@ -201,13 +170,9 @@ class PlaySoundsViewController: UIViewController, AVAudioPlayerDelegate  {
     {
         // ensure that the audio engine is not playing
         mAudioEngine.stop()
-        
         mAudioPlayer.delegate = self
-        mAudioPlayer.currentTime = 0.0
         mAudioPlayer.enableRate = true
         mAudioPlayer.rate = rAudioPlayRate
-        mAudioPlayer.stop()
-        mAudioPlayer.prepareToPlay()
         mAudioPlayer.play()
     }
     
@@ -219,22 +184,30 @@ class PlaySoundsViewController: UIViewController, AVAudioPlayerDelegate  {
     
     // start play fast and update buttons
     @IBAction func onPlayFastButtonTouched(sender: UIButton) {
-        
         playAudio(1.5)
         updateButtons()
     }
     
     // stop play and update buttons
     @IBAction func onStopButtonTouched(sender: UIButton) {
-        mAudioPlayer.stop()
+        stopAllAudio()
         stopMotionUpdates()
         updateButtons()
     }
     
     // use delegate to ensure that the stop button isn't enabled upon playback finish
     func audioPlayerDidFinishPlaying(player: AVAudioPlayer, successfully flag: Bool) {
+        mAEnginePlaying = false
         stopMotionUpdates()
         updateButtons()
+    }
+    
+    // stop all audio
+    func stopAllAudio() {
+        mAudioPlayer.stop()
+        mAudioEngine.stop()
+        mAudioEngine.reset()
+        mAEnginePlaying = false
     }
     
     // -------------------------------------------------------------------------------------
@@ -248,7 +221,7 @@ class PlaySoundsViewController: UIViewController, AVAudioPlayerDelegate  {
     func playAudioWithMotion(rAudioPlayRate: Float )
     {
         // ensure that the audio engine is not playing
-        mAudioEngine.stop()
+        stopAllAudio()
         
         mAudioPlayer.delegate = self
         mAudioPlayer.currentTime = 0.0
@@ -284,12 +257,10 @@ class PlaySoundsViewController: UIViewController, AVAudioPlayerDelegate  {
         return false
     }
     
+    // returns the angle between the specified vector and the mMotionStart vector
     func radiansBetweenStartAttitudeAndCurrentAttitude(deviceMotion: CMDeviceMotion) -> Double {
-        // TODO: figure out how to write a constructor in swift to initialize Vec3 with x,y,z
-        let curV = Vec3()
-        curV.x = deviceMotion.gravity.x
-        curV.y = deviceMotion.gravity.y
-        curV.z = deviceMotion.gravity.z
+        // get the angle between the current vector and the "default" vector
+        let curV = Vec3(x:deviceMotion.gravity.x, y: deviceMotion.gravity.y, z: deviceMotion.gravity.z)
         return mMotionStart.radiansBetween(curV)
     }
     

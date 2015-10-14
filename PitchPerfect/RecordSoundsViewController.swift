@@ -21,7 +21,6 @@ class RecordSoundsViewController: UIViewController, AVAudioRecorderDelegate {
     
     // -------------------------------------------------------------------------------------
     // MEMBER VARIABLES (AV & motion handling)
-    var mRecordedAudio:RecordedAudio!
     var mAudioRecorder:AVAudioRecorder!
 
     // -------------------------------------------------------------------------------------
@@ -40,11 +39,6 @@ class RecordSoundsViewController: UIViewController, AVAudioRecorderDelegate {
         updateButtons(false);
     }
 
-    override func didReceiveMemoryWarning() {
-        super.didReceiveMemoryWarning()
-        // Dispose of any resources that can be recreated.
-    }
-    
     // enables and disables buttons based on a recording state
     func updateButtons(isRecording: Bool)
     {
@@ -73,18 +67,10 @@ class RecordSoundsViewController: UIViewController, AVAudioRecorderDelegate {
         // 1) Find a directory on the phone to write to and a file name
         let dirPath = NSSearchPathForDirectoriesInDomains(.DocumentDirectory, .UserDomainMask, true)[0] as String
         // to overwrite the same file every time
-        let recordingName = "my_audio_1.wav"
-        let pathArray = [dirPath, recordingName]
-        let filePath = NSURL.fileURLWithPathComponents(pathArray)
-        
-        // 2) initialize RecordedAudio object, whose variables will be set upon completion of recording
-        mRecordedAudio = RecordedAudio()
-        
-        // 3) setup and start recording
+        // 2) setup and start recording
         let session = AVAudioSession.sharedInstance()
         try! session.setCategory(AVAudioSessionCategoryPlayAndRecord)
-        
-        try! mAudioRecorder = AVAudioRecorder(URL: filePath!, settings: [:])
+        try! mAudioRecorder = AVAudioRecorder(URL: NSURL.fileURLWithPathComponents([dirPath,"my_audio.wav"])!, settings: [:] )
         mAudioRecorder.delegate = self
         mAudioRecorder.meteringEnabled = true
         mAudioRecorder.prepareToRecord()
@@ -104,13 +90,9 @@ class RecordSoundsViewController: UIViewController, AVAudioRecorderDelegate {
     func audioRecorderDidFinishRecording(recorder: AVAudioRecorder, successfully flag: Bool) {
         if flag {
             // save the recorded audio
-            mRecordedAudio.filePathUrl = recorder.url
-            mRecordedAudio.title = recorder.url.lastPathComponent
-            
-            self.performSegueWithIdentifier("stopRecording", sender: mRecordedAudio)
+            self.performSegueWithIdentifier("stopRecording", sender: RecordedAudio(filePathUrl:recorder.url, title: recorder.url.lastPathComponent! ) )
         } else {
             print("Recording was not successful")
-            recordButton.enabled = true
         }
         // in case recording somehow stops without the stop button
         updateButtons(false)
